@@ -4,4 +4,7 @@
 #COBALT -q debug
 #COBALT -O ./output/$jobid
 
-./process-log /gpfs/mira-fs0/logs/darshan/mira/2016/1/1/maxhutch_nek5000_id684392_1-1-5802-10292533989133739567_2.darshan.gz
+for file in /gpfs/mira-fs0/logs/darshan/mira/2016/1/1/*
+do
+	./process-log $file
+done
