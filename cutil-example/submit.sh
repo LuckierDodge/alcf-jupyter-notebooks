@@ -3,8 +3,13 @@
 #COBALT -n 1
 #COBALT -q debug
 #COBALT -O ./output/$jobid
+#COBALT -M ryan.lewis@anl.gov
 
-for file in /gpfs/mira-fs0/logs/darshan/mira/2016/1/1/*
+year=2016
+month=1
+day=1
+
+for file in /gpfs/mira-fs0/logs/darshan/mira/$year/$month/$day/*
 do
-	./process-log $file
+	./process-log $file ../data/darshan/${year}_${month}_${day}_$(basename $file).csv
 done
