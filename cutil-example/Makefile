@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS=-I/soft/perftools/darshan/darshan-2.3.1/include
-LDFLAGS=-L/soft/perftools/darshan/darshan-2.3.1/lib -Wl,-rpath,/soft/perftools/darshan/darshan-2.3.1/lib
+CFLAGS=-I/home/rlewis/dev/darshan/include
+LDFLAGS=-L/home/rlewis/dev/darshan/lib -Wl,-rpath,/home/rlewis/dev/darshan/lib
 
 all: process-log
 
