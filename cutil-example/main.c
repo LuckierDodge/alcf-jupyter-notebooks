@@ -1,13 +1,85 @@
+#include <mpi.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include "darshan-logutils.h"
-
-int write_to_csv (char tmp_string[], struct darshan_job *job, struct darshan_file cp_file, char *filename_out);
+#include <stdlib.h>
 
 int main (int argc, char **argv)
 {
+    int world_rank;
+    int world_size;
+    MPI_Status status;
+    char* filename_in;
+
+    // Initialize the MPI environment
+    MPI_Init(NULL, NULL);
+    // Find out rank, size
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    if (world_size < 2) {
+        fprintf(stderr, "World size must be greater than 1 for %s\n", argv[0]);
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    if (argc < 3) {
+        fprintf(stderr, "Incorrect parameters, provide a list of files to process, and a location to output processed files");
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    fprintf(stdout, "World size and parameters OK");
+    if (world_rank == 0) {
+        // Master-controller Rank
+        char* filename_list = argv[1];
+        char* filename_out;
+        char* filename_processed;
+        int rank;
+        int ranks_in_use;
+
+        FILE *f = fopen(filename_list, "r");
+        if (f == NULL) {
+            fprintf(stderr, "Error opening list file %s\n", filename_list);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
+        for (rank = 1, ranks_in_use = 0; rank < world_size && fscanf(f, "%s", filename_in) != EOF; rank++, ranks_in_use++) {
+		MPI_Send(&filename_in, strlen(filename_in), MPI_CHAR, rank, 0, MPI_COMM_WORLD);
+        }
+        while (fscanf(f, "%s", filename_in) != EOF) {
+            MPI_Recv(&filename_processed, 1024, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+            write_processed(&filename_processed);
+	    MPI_Send(&filename_in, strlen(filename_in), MPI_CHAR, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+        }
+        while (ranks_in_use > 0) {
+            MPI_Recv(&filename_processed, 1024, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+            write_processed(&filename_processed);
+	    MPI_Send(" ", 1, MPI_CHAR, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
+        }
+    } else {
+        // File-processing Ranks
+        char* filename_out;
+        char* basename;
+        while(1) {
+            MPI_Recv(&filename_in, 1024, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            basename = strrchr(filename_in, '/');
+            if(basename==NULL) {
+            	sprintf(filename_out, "%s/%s", argv[2], filename_in);
+            } else {
+            	sprintf(filename_out, "%s/%s", argv[2], basename + 1);
+            }
+            if (status.MPI_TAG == 0) {
+                prepare_output_file(&filename_out);
+                process_file(&filename_in, &filename_out);
+	        MPI_Send(&filename_in, strlen(filename_in), MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+            } else if (status.MPI_TAG == 1) {
+                break;
+            }
+        }
+    }
+    MPI_Finalize();
+}
+
+int process_file(char* filename_in, char* filename_out) {
     darshan_fd          file;    
-    char               *filename_in;
-    char               *filename_out;
     int                 ret;
     struct darshan_job  job;
     struct darshan_file cp_file;
@@ -17,9 +89,6 @@ int main (int argc, char **argv)
     char**              fs_types;
     char                tmp_string[4096];
     int                 record_count;
-
-    filename_in = argv[1];
-    filename_out = argv[2];
 
     file = darshan_log_open(filename_in, "r");
     if(!file)
@@ -47,7 +116,7 @@ int main (int argc, char **argv)
         return(-1);
     }
 
-    // useful is you want to map files to file systems
+    // useful if you want to map files to file systems
     ret = darshan_log_getmounts(file, &devs, &mnt_pts, &fs_types, &mount_count);
     if (ret < 0)
     {
@@ -74,7 +143,7 @@ int main (int argc, char **argv)
         }
         else
         {
-            cret = write_to_csv(tmp_string, &job, cp_file, filename_out);
+            cret = write_to_csv(&tmp_string, &job, cp_file, filename_out);
             if (cret < 0) {
                 darshan_log_close(file);
                 return(-1);
@@ -131,7 +200,7 @@ int write_header_to_csv(char *filename_out) {
     return 0;
 }
 
-int write_to_csv (char tmp_string[], struct darshan_job *job, struct darshan_file cp_file, char *filename_out) {
+int write_to_csv (char* tmp_string, struct darshan_job *job, struct darshan_file cp_file, char *filename_out) {
     FILE *f = fopen(filename_out, "a");
     if (f == NULL) {
         fprintf(stderr, "Error opening csv %s\n", filename_out);
@@ -148,5 +217,23 @@ int write_to_csv (char tmp_string[], struct darshan_job *job, struct darshan_fil
     }
     fprintf(f, "\n");
     fclose(f);
+    return 0;
+}
+
+int write_processed(char* filename) {
+    FILE *f = fopen("./processed_list.txt", "a");
+    if (f == NULL) {
+        fprintf(stderr, "Error opening processed file list.");
+        return -1;
+    }
+    fprintf(f, "%s\n", filename);
+    return 0;
+}
+
+// TODO: Finish this function
+int prepare_output_file(char* filename_out) {
+    char* command;
+    sprintf(command, "mkdir -p %s", filename_out);
+    system(command);
     return 0;
 }

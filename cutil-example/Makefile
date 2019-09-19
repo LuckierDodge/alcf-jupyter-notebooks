@@ -1,11 +1,11 @@
-CC=gcc
+CC=mpicc
 CFLAGS=-I/home/rlewis/dev/darshan/include
 LDFLAGS=-L/home/rlewis/dev/darshan/lib -Wl,-rpath,/home/rlewis/dev/darshan/lib
 
-all: process-log
+all: process-logs
 
-process-log: main.o 
+process-logs: main.o 
 	$(CC) -o $@ $^ $(LDFLAGS) -ldarshan-util -lz -lbz2
 
-clean::
-	rm -f *.o process-log
+clean:
+	rm -f *.o process-logs

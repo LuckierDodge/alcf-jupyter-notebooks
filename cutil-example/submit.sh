@@ -6,23 +6,25 @@
 #COBALT -M ryan.lewis@anl.gov
 #COBALT -A AMASE
 
-year=$1
-month=$2
+NODES=`cat $COBALT_NODEFILE | wc -l`
 
-NODES=`cat $COBALT_NODEFILE`
-NODE_ARRAY=($NODES)
+PROCS=$((NODES * 12))
 
-# day=2
-# let "index = ${day} - 1"
-# ssh ${NODE_ARRAY[$index]} pwd
+mpirun -f $COBALT_NODEFILE -n $PROCS ./process-logs list.txt /lus/theta-fs0/projects/AMASE/rlewis/darshan/debug
 
-for day in {1..2} #{1..31}
-do
-	if [ $day == 1 ]; then
-		/home/rlewis/repos/jupyter-notebooks/cutil-example/process.sh $year $month $day &
-	else
-		let "index = ${day} - 1"
-		ssh ${NODE_ARRAY[$index]} "/home/rlewis/repos/jupyter-notebooks/cutil-example/process.sh $year $month $day" &
-	fi
-done
-wait
+# year=$1
+# month=$2
+# 
+# NODES=`cat $COBALT_NODEFILE`
+# NODE_ARRAY=($NODES)
+# 
+# for day in {1..31}
+# do
+# 	if [ $day == 1 ]; then
+# 		/home/rlewis/repos/jupyter-notebooks/cutil-example/process.sh $year $month $day &
+# 	else
+# 		let "index = ${day} - 1"
+# 		ssh ${NODE_ARRAY[$index]} "/home/rlewis/repos/jupyter-notebooks/cutil-example/process.sh $year $month $day" &
+# 	fi
+# done
+# wait

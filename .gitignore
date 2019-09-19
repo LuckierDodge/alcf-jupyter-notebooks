@@ -1,4 +1,4 @@
 data/
 cutil-example/output/
 *.o
-process-log
+process-logs
