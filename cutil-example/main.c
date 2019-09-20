@@ -10,7 +10,6 @@ int main (int argc, char **argv)
     int world_rank;
     int world_size;
     MPI_Status status;
-    char* filename_in;
 
     // Initialize the MPI environment
     MPI_Init(NULL, NULL);
@@ -26,13 +25,13 @@ int main (int argc, char **argv)
         fprintf(stderr, "Incorrect parameters, provide a list of files to process, and a location to output processed files");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    fprintf(stdout, "World size and parameters OK");
+    //fprintf(stdout, "World size and parameters OK\n");
     if (world_rank == 0) {
+        //fprintf(stdout, "%s, %s\n", argv[1], argv[2]);
         // Master-controller Rank
         char* filename_list = argv[1];
-        char* filename_out;
-        char* filename_processed;
-        int rank;
+        char filename_in[1024] = {'\0'};
+        int rank = 1;
         int ranks_in_use;
 
         FILE *f = fopen(filename_list, "r");
@@ -40,36 +39,46 @@ int main (int argc, char **argv)
             fprintf(stderr, "Error opening list file %s\n", filename_list);
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
+        prepare_output_file(argv[2]);
+
 
         for (rank = 1, ranks_in_use = 0; rank < world_size && fscanf(f, "%s", filename_in) != EOF; rank++, ranks_in_use++) {
-		MPI_Send(&filename_in, strlen(filename_in), MPI_CHAR, rank, 0, MPI_COMM_WORLD);
+                //fprintf(stdout, "Sending %s (length %i) to rank %i\n", filename_in, strlen(filename_in), rank);
+		MPI_Send(filename_in, strlen(filename_in), MPI_CHAR, rank, 0, MPI_COMM_WORLD);
         }
         while (fscanf(f, "%s", filename_in) != EOF) {
-            MPI_Recv(&filename_processed, 1024, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-            write_processed(&filename_processed);
-	    MPI_Send(&filename_in, strlen(filename_in), MPI_CHAR, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+            char filename_processed[1024] = {'\0'};
+            MPI_Recv(filename_processed, 1024, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+            write_processed(filename_processed);
+            MPI_Send(&filename_in, strlen(filename_in), MPI_CHAR, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
         }
+        fclose(f);
         while (ranks_in_use > 0) {
-            MPI_Recv(&filename_processed, 1024, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-            write_processed(&filename_processed);
-	    MPI_Send(" ", 1, MPI_CHAR, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
+            char filename_processed[1024] = {'\0'};
+            MPI_Recv(filename_processed, 1024, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+            write_processed(filename_processed);
+            MPI_Send(" ", 1, MPI_CHAR, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
+            ranks_in_use--;
         }
     } else {
         // File-processing Ranks
-        char* filename_out;
-        char* basename;
         while(1) {
-            MPI_Recv(&filename_in, 1024, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-            basename = strrchr(filename_in, '/');
-            if(basename==NULL) {
-            	sprintf(filename_out, "%s/%s", argv[2], filename_in);
-            } else {
-            	sprintf(filename_out, "%s/%s", argv[2], basename + 1);
-            }
+            char filename_in[1024] = {'\0'};
+            char filename_out[1024] = {'\0'};
+            char name[1024] = {'\0'};
+            MPI_Recv(filename_in, 1024, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            //fprintf(stdout, "Rank %i: Recieved file %s from rank 0.\n", world_rank, filename_in);
             if (status.MPI_TAG == 0) {
-                prepare_output_file(&filename_out);
+                char *s = strrchr(filename_in, '/');
+                if(s==NULL) {
+                    strcpy(name, filename_in);
+                } else {
+                    strcpy(name, s + 1);
+                }
+                sprintf(filename_out, "%s/%s.csv\0", argv[2], name);
+                //fprintf(stdout, "Rank %i: Processing file %s.\n", world_rank, filename_out);
                 process_file(&filename_in, &filename_out);
-	        MPI_Send(&filename_in, strlen(filename_in), MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+	        MPI_Send(filename_in, strlen(filename_in), MPI_CHAR, 0, 0, MPI_COMM_WORLD);
             } else if (status.MPI_TAG == 1) {
                 break;
             }
@@ -89,6 +98,8 @@ int process_file(char* filename_in, char* filename_out) {
     char**              fs_types;
     char                tmp_string[4096];
     int                 record_count;
+
+    //fprintf(stdout, "Processing: %s, %s\n", filename_in, filename_out);
 
     file = darshan_log_open(filename_in, "r");
     if(!file)
@@ -221,19 +232,21 @@ int write_to_csv (char* tmp_string, struct darshan_job *job, struct darshan_file
 }
 
 int write_processed(char* filename) {
+    //fprintf(stdout, "File processed: %s\n", filename);
     FILE *f = fopen("./processed_list.txt", "a");
     if (f == NULL) {
-        fprintf(stderr, "Error opening processed file list.");
+        fprintf(stderr, "Error opening processed file list.\n");
         return -1;
     }
     fprintf(f, "%s\n", filename);
+    fclose(f);
     return 0;
 }
 
-// TODO: Finish this function
 int prepare_output_file(char* filename_out) {
-    char* command;
+    char command[1024] = "";
     sprintf(command, "mkdir -p %s", filename_out);
+    //fprintf(stdout, "%s\n", command);
     system(command);
     return 0;
 }

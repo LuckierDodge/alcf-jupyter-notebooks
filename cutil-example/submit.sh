@@ -1,7 +1,7 @@
 #!/bin/bash
-#COBALT -t 120
-#COBALT -n 2
-#COBALT -q debug
+#COBALT -t 720
+#COBALT -n 32
+#COBALT -q default
 #COBALT -O ./output/$jobid
 #COBALT -M ryan.lewis@anl.gov
 #COBALT -A AMASE
@@ -10,7 +10,7 @@ NODES=`cat $COBALT_NODEFILE | wc -l`
 
 PROCS=$((NODES * 12))
 
-mpirun -f $COBALT_NODEFILE -n $PROCS ./process-logs list.txt /lus/theta-fs0/projects/AMASE/rlewis/darshan/debug
+mpirun -f $COBALT_NODEFILE -n $PROCS ./process-logs list.txt /lus/theta-fs0/projects/AMASE/rlewis/darshan/debug/2015
 
 # year=$1
 # month=$2
