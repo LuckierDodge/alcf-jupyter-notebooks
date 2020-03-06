@@ -2,3 +2,4 @@ data/
 cutil-example/output/
 *.o
 process-logs
+log/
